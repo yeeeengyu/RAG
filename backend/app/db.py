@@ -1,16 +1,20 @@
 """MongoDB Atlas helpers for the RAG learning project."""
+import os
 from datetime import datetime, timezone
 from typing import Any
-import os
 
 from pymongo import MongoClient
 from pymongo.collection import Collection
+from dotenv import load_dotenv
 
+
+load_dotenv()
 
 MONGODB_URI = os.getenv("MONGODB_URI", "")
 MONGODB_DB = os.getenv("MONGODB_DB", "rag_learning")
 MONGODB_COLLECTION = os.getenv("MONGODB_COLLECTION", "rag_documents")
 VECTOR_INDEX_NAME = os.getenv("VECTOR_INDEX_NAME", "rag_vector_index")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 
 
 _client: MongoClient | None = None
