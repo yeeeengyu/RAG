@@ -41,6 +41,12 @@ textarea {
   font-size: 14px;
 }
 
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 button {
   padding: 10px 18px;
   border: none;
@@ -66,6 +72,13 @@ button:hover {
 .status {
   margin-top: 10px;
   font-size: 14px;
+}
+
+.route-tag {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
 }
 
 .answer {

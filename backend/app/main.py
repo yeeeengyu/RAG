@@ -45,6 +45,22 @@ class ChatQueryResponse(BaseModel):
     retrieved_documents: list[dict[str, Any]]
 
 
+class ChatRouteRequest(BaseModel):
+    question: str = Field(..., min_length=1, description="User question")
+    threshold: float = Field(
+        0.75,
+        ge=0.0,
+        le=1.0,
+        description="Score threshold to decide whether to use RAG.",
+    )
+
+
+class ChatRouteResponse(BaseModel):
+    answer: str
+    retrieved_documents: list[dict[str, Any]]
+    route: str
+
+
 class RagDocumentResponse(BaseModel):
     id: str
     text: str
@@ -178,3 +194,77 @@ def chat_query(payload: ChatQueryRequest) -> ChatQueryResponse:
     )
 
     return ChatQueryResponse(answer=answer, retrieved_documents=retrieved)
+
+
+@app.post("/chat/route", response_model=ChatRouteResponse)
+def chat_route(payload: ChatRouteRequest) -> ChatRouteResponse:
+    """
+    Simple query routing endpoint.
+    If the top retrieved score is below the threshold, fall back to a plain LLM answer.
+    Otherwise use RAG context.
+    """
+    client = OpenAI()
+
+    try:
+        embedding_response = client.embeddings.create(
+            model="text-embedding-3-small",
+            input=payload.question,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Embedding failed: {exc}") from exc
+
+    question_vector = embedding_response.data[0].embedding
+    collection = get_collection()
+    retrieved = build_rag_context(collection, question_vector, limit=3)
+
+    top_score = retrieved[0]["score"] if retrieved else 0.0
+    use_rag = top_score >= payload.threshold
+    route = "rag" if use_rag else "llm"
+
+    system_prompt = (
+        "You are a helpful assistant. Use the provided context when relevant, "
+        "and say when the context does not contain the answer."
+    )
+
+    if use_rag:
+        context_text = "\n".join([f"- {doc['text']}" for doc in retrieved])
+        user_prompt = (
+            "Context:\n"
+            f"{context_text}\n\n"
+            "Question:\n"
+            f"{payload.question}\n\n"
+            "Answer in Korean to match the learning UI."
+        )
+    else:
+        user_prompt = (
+            "Question:\n"
+            f"{payload.question}\n\n"
+            "Answer in Korean to match the learning UI."
+        )
+
+    try:
+        completion = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Chat completion failed: {exc}") from exc
+
+    answer = completion.choices[0].message.content
+
+    log_chat(
+        collection=collection,
+        question=payload.question,
+        answer=answer,
+        retrieved_documents=retrieved if use_rag else [],
+        route=route,
+    )
+
+    return ChatRouteResponse(
+        answer=answer,
+        retrieved_documents=retrieved if use_rag else [],
+        route=route,
+    )

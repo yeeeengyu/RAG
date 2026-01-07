@@ -109,6 +109,7 @@ def log_chat(
     question: str,
     answer: str,
     retrieved_documents: list[dict[str, Any]],
+    route: str | None = None,
 ) -> None:
     """Store a chat log with the RAG context used for the answer."""
     log_entry = {
@@ -118,4 +119,6 @@ def log_chat(
         "retrieved_documents": retrieved_documents,
         "created_at": datetime.now(timezone.utc),
     }
+    if route:
+        log_entry["route"] = route
     collection.insert_one(log_entry)

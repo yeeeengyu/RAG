@@ -9,6 +9,7 @@ const App = () => {
   const [storeError, setStoreError] = useState(false);
   const [answer, setAnswer] = useState("");
   const [retrievedDocs, setRetrievedDocs] = useState([]);
+  const [routeDecision, setRouteDecision] = useState("");
   const [ragDocs, setRagDocs] = useState([]);
   const [ragLoading, setRagLoading] = useState(false);
 
@@ -73,6 +74,7 @@ const App = () => {
 
     setAnswer("답변 생성 중...");
     setRetrievedDocs([]);
+    setRouteDecision("RAG (고정)");
 
     try {
       const response = await fetch(`${API_BASE_URL}/chat/query`, {
@@ -91,6 +93,39 @@ const App = () => {
       setRetrievedDocs(data.retrieved_documents || []);
     } catch (error) {
       setAnswer(`오류: ${error.message}`);
+    }
+  };
+
+  const handleRouteAsk = async () => {
+    const trimmed = question.trim();
+    if (!trimmed) {
+      setAnswer("질문을 입력해주세요.");
+      return;
+    }
+
+    setAnswer("라우팅 답변 생성 중...");
+    setRetrievedDocs([]);
+    setRouteDecision("판단 중...");
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/chat/route`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: trimmed }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.detail || "라우팅 질문 실패");
+      }
+
+      const data = await response.json();
+      setAnswer(data.answer);
+      setRetrievedDocs(data.retrieved_documents || []);
+      setRouteDecision(data.route === "rag" ? "RAG" : "LLM");
+    } catch (error) {
+      setAnswer(`오류: ${error.message}`);
+      setRouteDecision("오류");
     }
   };
 
@@ -143,13 +178,19 @@ const App = () => {
           placeholder="질문을 입력하세요."
           rows="3"
         ></textarea>
-        <button type="button" onClick={handleAsk}>
-          질문하기
-        </button>
+        <div className="button-row">
+          <button type="button" onClick={handleAsk}>
+            질문하기 (RAG)
+          </button>
+          <button type="button" onClick={handleRouteAsk}>
+            라우팅 질문하기
+          </button>
+        </div>
       </section>
 
       <section className="card">
         <h2>응답 결과</h2>
+        {routeDecision && <p className="route-tag">라우팅 결과: {routeDecision}</p>}
         <div className="answer">{answer}</div>
         <h3>검색된 문서</h3>
         <ul className="retrieved">
