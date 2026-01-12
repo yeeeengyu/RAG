@@ -280,3 +280,28 @@ def chat_route(payload: ChatRouteRequest) -> ChatRouteResponse:
         retrieved_documents=retrieved if use_rag else [],
         route=route,
     )
+
+class BusinessRequest(BaseModel):
+    supplierName: str = Field(..., min_length=1, description="Supplier name for search")
+    productName: str = Field(..., min_length=1, description="Product name for search")
+
+
+class BusinessRagResponse(BaseModel):
+    answer: str
+    sources: list[str]
+
+from googlesearch import search
+from bs4 import BeautifulSoup
+import requests
+@app.post('/business/rag')
+def chat_sub(req: BusinessRequest):
+    result = search(req.supplierName + req.productName, num_results = 5)
+
+    for url in result: # result는 generator로 for문 순회로 결과 출력
+        print(url)
+
+    url_result = requests.get(url)
+    html = url_result.text
+    soup = BeautifulSoup(html, 'html.parser')
+    text = soup.get_text()
+    print(text)
